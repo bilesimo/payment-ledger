@@ -375,10 +375,8 @@ impl JournalRepository for PgJournalStore {
                 coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0)::bigint as credit_total
             from journal_entries
             where account_id = $1
-              and (
-                $2::timestamptz is null
-                or (created_at, transaction_id, id) < ($2, coalesce($3, transaction_id), coalesce($4, id))
-              )
+              and $2::timestamptz is not null
+              and (created_at, transaction_id, id) < ($2, coalesce($3, transaction_id), coalesce($4, id))
             "#,
         )
         .bind(account_id.value())
