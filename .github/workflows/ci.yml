@@ -1,0 +1,97 @@
+name: CI
+
+on:
+    push:
+    pull_request:
+
+jobs:
+    fmt:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v5
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt
+
+            - name: Cache Rust build artifacts
+              uses: Swatinem/rust-cache@v2
+
+            - name: Check formatting
+              run: cargo fmt --check
+
+    clippy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v5
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy
+
+            - name: Cache Rust build artifacts
+              uses: Swatinem/rust-cache@v2
+
+            - name: Run Clippy
+              env:
+                  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/payment_ledger
+                  NODE_ID: 1
+                  HTTP_ADDR: 127.0.0.1:3000
+              run: cargo clippy --all-targets --all-features -- -D warnings
+
+    test:
+        runs-on: ubuntu-latest
+
+        services:
+            postgres:
+                image: postgres:17-alpine
+                env:
+                    POSTGRES_USER: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_DB: payment_ledger
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U postgres -d payment_ledger"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v5
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Cache Rust build artifacts
+              uses: Swatinem/rust-cache@v2
+
+            - name: Run tests
+              env:
+                  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/payment_ledger
+                  NODE_ID: 1
+                  HTTP_ADDR: 127.0.0.1:3000
+              run: cargo test
+
+    audit:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v5
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Install cargo-audit
+              uses: taiki-e/install-action@cargo-audit
+
+            - name: Audit dependencies
+              run: cargo audit
