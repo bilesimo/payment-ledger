@@ -390,19 +390,17 @@ impl JournalRepository for PgJournalStore {
         let mut running_debits = Money::from_minor_units(opening.get::<i64, _>("debit_total"))?;
         let mut running_credits = Money::from_minor_units(opening.get::<i64, _>("credit_total"))?;
 
+        let has_more = rows.len() > query.limit;
         let mut entries = Vec::new();
         let mut next_cursor = None;
+        let mut last_returned_cursor = None;
 
-        for (index, row) in rows.into_iter().enumerate() {
-            if index == query.limit {
-                let cursor = StatementCursor {
-                    created_at: row.get("created_at"),
-                    transaction_id: TransactionId::new(row.get("transaction_id")),
-                    entry_id: EntryId::new(row.get("entry_id")),
-                };
-                next_cursor = Some(encode_statement_cursor(&cursor)?);
-                break;
-            }
+        for row in rows.into_iter().take(query.limit) {
+            let cursor = StatementCursor {
+                created_at: row.get("created_at"),
+                transaction_id: TransactionId::new(row.get("transaction_id")),
+                entry_id: EntryId::new(row.get("entry_id")),
+            };
 
             let direction = EntryDirection::from_db_value(&row.get::<String, _>("direction"))?;
             let amount = Money::from_minor_units(row.get("amount_in_cents"))?;
@@ -410,10 +408,11 @@ impl JournalRepository for PgJournalStore {
                 EntryDirection::Debit => running_debits += amount,
                 EntryDirection::Credit => running_credits += amount,
             }
+            last_returned_cursor = Some(cursor.clone());
 
             entries.push(StatementEntry {
-                entry_id: EntryId::new(row.get("entry_id")),
-                transaction_id: TransactionId::new(row.get("transaction_id")),
+                entry_id: cursor.entry_id,
+                transaction_id: cursor.transaction_id,
                 reference: row.get("reference"),
                 description: row.get("description"),
                 direction,
@@ -425,6 +424,13 @@ impl JournalRepository for PgJournalStore {
                 ),
                 created_at: row.get("created_at"),
             });
+        }
+
+        if has_more {
+            next_cursor = last_returned_cursor
+                .as_ref()
+                .map(encode_statement_cursor)
+                .transpose()?;
         }
 
         Ok(Some(StatementPage {
