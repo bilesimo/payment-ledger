@@ -1,3 +1,4 @@
+use dotenv::dotenv;
 use payment_ledger::{
     build_app,
     infra::config::Config,
@@ -8,6 +9,8 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
+    dotenv().ok();
+
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
