@@ -67,6 +67,8 @@ cargo run
 
 By default, the API listens on `127.0.0.1:3000`.
 
+The service also serves a small browser UI at [http://127.0.0.1:3000/](http://127.0.0.1:3000/) for creating accounts, posting transactions, reversing transactions, and inspecting balances or statements without using `curl`.
+
 Migrations in [`migrations/0001_init.sql`](/Users/bilesimo/Development/payment-ledger/migrations/0001_init.sql) are applied automatically when the app starts.
 
 ## Configuration

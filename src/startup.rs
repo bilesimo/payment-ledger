@@ -12,6 +12,7 @@ use crate::{
         errors::{AppError, ErrorCode},
         ids::SnowflakeGenerator,
     },
+    ui,
 };
 
 #[derive(Clone)]
@@ -42,6 +43,7 @@ pub async fn build_app(config: &Config) -> Result<Router, AppError> {
     };
 
     Ok(Router::new()
+        .merge(ui::router())
         .merge(accounts_http::router())
         .merge(journal_http::router())
         .with_state(state))

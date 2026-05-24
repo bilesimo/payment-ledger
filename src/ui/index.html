@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Ledger Console</title>
+  <style>
+    :root {
+      --bg: #f5efe3;
+      --bg-accent: #eadcc4;
+      --surface: rgba(255, 251, 244, 0.86);
+      --surface-strong: #fffdf9;
+      --ink: #192126;
+      --muted: #5e675f;
+      --line: rgba(25, 33, 38, 0.12);
+      --primary: #165d4d;
+      --primary-strong: #0f4538;
+      --secondary: #c76746;
+      --secondary-strong: #a84d2f;
+      --shadow: 0 20px 50px rgba(76, 56, 31, 0.14);
+      --radius: 22px;
+      --radius-sm: 14px;
+      --mono: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
+      --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 28%),
+        radial-gradient(circle at top right, rgba(199, 103, 70, 0.16), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, #f0e5d2 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(25, 33, 38, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(25, 33, 38, 0.03) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent);
+    }
+
+    main {
+      width: min(1280px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    .hero {
+      display: grid;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: calc(var(--radius) + 4px);
+      background: linear-gradient(135deg, rgba(255, 253, 249, 0.88), rgba(255, 246, 234, 0.78));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .eyebrow {
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(22, 93, 77, 0.1);
+      color: var(--primary-strong);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(2.2rem, 4vw, 4rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      max-width: 10ch;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 72ch;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .hero-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .hero-stat {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.64);
+      border: 1px solid rgba(25, 33, 38, 0.08);
+    }
+
+    .hero-stat strong {
+      display: block;
+      margin-bottom: 6px;
+      font-family: var(--serif);
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .hero-stat span {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 1.15fr 0.85fr;
+      align-items: start;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .card {
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+      transform: translateY(10px);
+      opacity: 0;
+      animation: rise 420ms ease forwards;
+    }
+
+    .card:nth-child(2) { animation-delay: 70ms; }
+    .card:nth-child(3) { animation-delay: 140ms; }
+    .card:nth-child(4) { animation-delay: 210ms; }
+
+    @keyframes rise {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 20px 22px 0;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+
+    .card-header span {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    form,
+    .panel-body {
+      display: grid;
+      gap: 14px;
+      padding: 18px 22px 22px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      background: var(--surface-strong);
+      color: var(--ink);
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: rgba(22, 93, 77, 0.45);
+      box-shadow: 0 0 0 4px rgba(22, 93, 77, 0.12);
+      transform: translateY(-1px);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .primary {
+      background: var(--primary);
+      color: #f7f4ef;
+      box-shadow: 0 10px 22px rgba(22, 93, 77, 0.24);
+    }
+
+    .secondary {
+      background: rgba(199, 103, 70, 0.14);
+      color: var(--secondary-strong);
+    }
+
+    .ghost {
+      background: rgba(25, 33, 38, 0.06);
+      color: var(--ink);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .entry-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .entry-row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1.2fr 0.9fr 1fr auto;
+      align-items: end;
+      padding: 12px;
+      border: 1px solid rgba(25, 33, 38, 0.08);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(22, 93, 77, 0.08);
+      color: var(--primary-strong);
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--mono);
+      font-size: 0.84rem;
+      line-height: 1.55;
+    }
+
+    .output {
+      display: grid;
+      gap: 12px;
+    }
+
+    .response-shell {
+      border-radius: 20px;
+      background: #101617;
+      color: #d8ece4;
+      padding: 16px;
+      min-height: 260px;
+      max-height: 520px;
+      overflow: auto;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .status-line {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(16, 22, 23, 0.05);
+      color: var(--ink);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .status-line.ok {
+      background: rgba(22, 93, 77, 0.1);
+      color: var(--primary-strong);
+    }
+
+    .status-line.error {
+      background: rgba(199, 103, 70, 0.12);
+      color: var(--secondary-strong);
+    }
+
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      main {
+        width: min(100% - 20px, 100%);
+        padding-top: 20px;
+      }
+
+      .hero,
+      .card-header,
+      form,
+      .panel-body {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .grid.two,
+      .grid.three,
+      .entry-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Embedded control panel</div>
+      <h1>Payment Ledger Console</h1>
+      <p>
+        A small browser UI for creating accounts, posting balanced journal entries, reversing
+        transactions, and inspecting balances or statements against the live API.
+      </p>
+      <div class="hero-grid">
+        <div class="hero-stat">
+          <strong>/accounts</strong>
+          <span>Create and fetch ledger accounts.</span>
+        </div>
+        <div class="hero-stat">
+          <strong>/journal/transactions</strong>
+          <span>Post, inspect, and reverse journal transactions.</span>
+        </div>
+        <div class="hero-stat">
+          <strong>/accounts/:id/*</strong>
+          <span>Check balances and page through statements.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="stack">
+        <article class="card">
+          <div class="card-header">
+            <h2>Accounts</h2>
+            <span>Create or inspect a single account.</span>
+          </div>
+          <form id="create-account-form">
+            <div class="grid two">
+              <label>
+                Name
+                <input id="account-name" name="name" type="text" placeholder="Cash" />
+              </label>
+              <label>
+                Account type
+                <select id="account-type" name="account_type">
+                  <option value="asset">Asset</option>
+                  <option value="liability">Liability</option>
+                  <option value="revenue">Revenue</option>
+                  <option value="expense">Expense</option>
+                </select>
+              </label>
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Create account</button>
+            </div>
+          </form>
+          <form id="get-account-form">
+            <div class="grid two">
+              <label>
+                Account ID
+                <input id="account-id" name="account_id" type="number" min="1" list="recent-account-ids" placeholder="1001" required />
+              </label>
+              <label>
+                Quick action
+                <select id="account-action" name="action">
+                  <option value="account">Fetch account</option>
+                  <option value="balance">Fetch balance</option>
+                  <option value="statement">Fetch statement</option>
+                </select>
+              </label>
+            </div>
+            <div class="grid three">
+              <label>
+                Statement limit
+                <input id="statement-limit" name="limit" type="number" min="1" placeholder="25" />
+              </label>
+              <label>
+                From
+                <input id="statement-from" name="from" type="datetime-local" />
+              </label>
+              <label>
+                To
+                <input id="statement-to" name="to" type="datetime-local" />
+              </label>
+            </div>
+            <label>
+              Cursor
+              <input id="statement-cursor" name="cursor" type="text" placeholder="Optional next_cursor value" />
+            </label>
+            <div class="button-row">
+              <button class="secondary" type="submit">Run query</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h2>Transactions</h2>
+            <span>Post balanced entries with any number of lines.</span>
+          </div>
+          <form id="post-transaction-form">
+            <div class="grid two">
+              <label>
+                Reference
+                <input id="tx-reference" name="reference" type="text" placeholder="sale-1001" required />
+              </label>
+              <label>
+                Description
+                <input id="tx-description" name="description" type="text" placeholder="Product sale" />
+              </label>
+            </div>
+            <div class="entry-list" id="entry-list"></div>
+            <div class="button-row">
+              <button class="ghost" id="add-entry" type="button">Add entry line</button>
+              <button class="primary" type="submit">Post transaction</button>
+            </div>
+            <div class="hint">
+              Amounts use BRL minor units. Total debits must equal total credits.
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h2>Lookup And Reverse</h2>
+            <span>Inspect a transaction by ID or reference, then reverse it.</span>
+          </div>
+          <form id="lookup-transaction-form">
+            <div class="grid two">
+              <label>
+                Transaction ID
+                <input id="lookup-tx-id" name="transaction_id" type="number" min="1" list="recent-transaction-ids" placeholder="2001" />
+              </label>
+              <label>
+                Reference
+                <input id="lookup-reference" name="reference" type="text" list="recent-references" placeholder="sale-1001" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button class="secondary" type="submit">Fetch transaction</button>
+            </div>
+          </form>
+          <form id="reverse-transaction-form">
+            <div class="grid three">
+              <label>
+                Transaction ID
+                <input id="reverse-tx-id" name="transaction_id" type="number" min="1" list="recent-transaction-ids" placeholder="2001" required />
+              </label>
+              <label>
+                Reversal reference
+                <input id="reverse-reference" name="reference" type="text" placeholder="sale-1001-reversal" required />
+              </label>
+              <label>
+                Reversal description
+                <input id="reverse-description" name="description" type="text" placeholder="Customer refund" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button class="secondary" type="submit">Reverse transaction</button>
+            </div>
+          </form>
+        </article>
+      </div>
+
+      <aside class="stack">
+        <article class="card">
+          <div class="card-header">
+            <h2>Recent Memory</h2>
+            <span>Saved locally in the browser for faster iteration.</span>
+          </div>
+          <div class="panel-body">
+            <div>
+              <strong>Accounts</strong>
+              <div class="pill-list" id="recent-accounts"></div>
+            </div>
+            <div>
+              <strong>Transactions</strong>
+              <div class="pill-list" id="recent-transactions"></div>
+            </div>
+            <div>
+              <strong>References</strong>
+              <div class="pill-list" id="recent-reference-pills"></div>
+            </div>
+            <datalist id="recent-account-ids"></datalist>
+            <datalist id="recent-transaction-ids"></datalist>
+            <datalist id="recent-references"></datalist>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h2>Response</h2>
+            <span>Raw JSON and request details.</span>
+          </div>
+          <div class="panel-body output">
+            <div class="status-line" id="status-line">Ready.</div>
+            <div class="response-shell">
+              <pre id="response-output">{
+  "message": "Use the forms to call the ledger API."
+}</pre>
+            </div>
+            <div class="button-row">
+              <button class="ghost" id="clear-output" type="button">Clear output</button>
+              <button class="ghost" id="seed-transaction" type="button">Use recent IDs in transaction form</button>
+            </div>
+          </div>
+        </article>
+      </aside>
+    </section>
+  </main>
+
+  <template id="entry-row-template">
+    <div class="entry-row">
+      <label>
+        Account ID
+        <input class="entry-account-id" type="number" min="1" list="recent-account-ids" placeholder="1001" required />
+      </label>
+      <label>
+        Direction
+        <select class="entry-direction">
+          <option value="debit">Debit</option>
+          <option value="credit">Credit</option>
+        </select>
+      </label>
+      <label>
+        Amount in cents
+        <input class="entry-amount" type="number" min="1" placeholder="10000" required />
+      </label>
+      <button class="ghost remove-entry" type="button">Remove</button>
+    </div>
+  </template>
+
+  <script>
+    const storageKeys = {
+      accountIds: "payment-ledger.accountIds",
+      transactionIds: "payment-ledger.transactionIds",
+      references: "payment-ledger.references"
+    };
+
+    const statusLine = document.getElementById("status-line");
+    const responseOutput = document.getElementById("response-output");
+    const entryList = document.getElementById("entry-list");
+
+    function readList(key) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveList(key, value) {
+      localStorage.setItem(key, JSON.stringify(value.slice(0, 8)));
+    }
+
+    function rememberItem(key, value) {
+      if (!value && value !== 0) {
+        return;
+      }
+
+      const stringValue = String(value).trim();
+      if (!stringValue) {
+        return;
+      }
+
+      const next = [stringValue, ...readList(key).filter((item) => item !== stringValue)];
+      saveList(key, next);
+      renderRecents();
+    }
+
+    function setStatus(message, kind) {
+      statusLine.textContent = message;
+      statusLine.className = "status-line";
+      if (kind) {
+        statusLine.classList.add(kind);
+      }
+    }
+
+    function showResponse(title, payload) {
+      responseOutput.textContent = `${title}\n\n${JSON.stringify(payload, null, 2)}`;
+    }
+
+    async function request(method, path, body) {
+      setStatus(`${method} ${path} in flight...`);
+
+      const options = {
+        method,
+        headers: {}
+      };
+
+      if (body !== undefined) {
+        options.headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(path, options);
+      const contentType = response.headers.get("content-type") || "";
+      const payload = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      const title = `${method} ${path} -> ${response.status} ${response.statusText}`;
+      showResponse(title, payload);
+      setStatus(title, response.ok ? "ok" : "error");
+
+      if (!response.ok) {
+        throw new Error(title);
+      }
+
+      return payload;
+    }
+
+    function toIso(value) {
+      if (!value) {
+        return null;
+      }
+
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+
+    function buildEntryRow(direction) {
+      const template = document.getElementById("entry-row-template");
+      const row = template.content.firstElementChild.cloneNode(true);
+      row.querySelector(".entry-direction").value = direction;
+      row.querySelector(".remove-entry").addEventListener("click", () => {
+        if (entryList.children.length > 2) {
+          row.remove();
+        }
+      });
+      return row;
+    }
+
+    function collectEntries() {
+      return Array.from(entryList.querySelectorAll(".entry-row")).map((row) => ({
+        account_id: Number(row.querySelector(".entry-account-id").value),
+        direction: row.querySelector(".entry-direction").value,
+        amount_in_cents: Number(row.querySelector(".entry-amount").value)
+      }));
+    }
+
+    function renderPills(containerId, items, onClick) {
+      const container = document.getElementById(containerId);
+      container.replaceChildren();
+
+      if (!items.length) {
+        const empty = document.createElement("span");
+        empty.className = "hint";
+        empty.textContent = "No saved values yet.";
+        container.appendChild(empty);
+        return;
+      }
+
+      items.forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pill";
+        button.textContent = item;
+        button.addEventListener("click", () => onClick(item));
+        container.appendChild(button);
+      });
+    }
+
+    function renderDatalist(id, values) {
+      const datalist = document.getElementById(id);
+      datalist.replaceChildren();
+      values.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        datalist.appendChild(option);
+      });
+    }
+
+    function renderRecents() {
+      const accountIds = readList(storageKeys.accountIds);
+      const transactionIds = readList(storageKeys.transactionIds);
+      const references = readList(storageKeys.references);
+
+      renderDatalist("recent-account-ids", accountIds);
+      renderDatalist("recent-transaction-ids", transactionIds);
+      renderDatalist("recent-references", references);
+
+      renderPills("recent-accounts", accountIds, (value) => {
+        document.getElementById("account-id").value = value;
+      });
+      renderPills("recent-transactions", transactionIds, (value) => {
+        document.getElementById("lookup-tx-id").value = value;
+        document.getElementById("reverse-tx-id").value = value;
+      });
+      renderPills("recent-reference-pills", references, (value) => {
+        document.getElementById("lookup-reference").value = value;
+        document.getElementById("tx-reference").value = value;
+      });
+    }
+
+    function seedTransactionForm() {
+      const accountIds = readList(storageKeys.accountIds);
+      const transactionIds = readList(storageKeys.transactionIds);
+      const references = readList(storageKeys.references);
+
+      if (accountIds[0]) {
+        const inputs = entryList.querySelectorAll(".entry-account-id");
+        if (inputs[0]) inputs[0].value = accountIds[0];
+        if (inputs[1]) inputs[1].value = accountIds[1] || accountIds[0];
+      }
+
+      if (transactionIds[0]) {
+        document.getElementById("reverse-tx-id").value = transactionIds[0];
+        document.getElementById("lookup-tx-id").value = transactionIds[0];
+      }
+
+      if (references[0]) {
+        document.getElementById("lookup-reference").value = references[0];
+      }
+    }
+
+    document.getElementById("add-entry").addEventListener("click", () => {
+      entryList.appendChild(buildEntryRow("debit"));
+    });
+
+    document.getElementById("clear-output").addEventListener("click", () => {
+      setStatus("Ready.");
+      responseOutput.textContent = '{\n  "message": "Output cleared."\n}';
+    });
+
+    document.getElementById("seed-transaction").addEventListener("click", seedTransactionForm);
+
+    document.getElementById("create-account-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      button.disabled = true;
+
+      try {
+        const name = document.getElementById("account-name").value.trim();
+        const payload = {
+          name: name || null,
+          account_type: document.getElementById("account-type").value
+        };
+
+        const result = await request("POST", "/accounts", payload);
+        rememberItem(storageKeys.accountIds, result.account_id);
+        document.getElementById("account-id").value = result.account_id;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("get-account-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      button.disabled = true;
+
+      try {
+        const accountId = document.getElementById("account-id").value.trim();
+        const action = document.getElementById("account-action").value;
+        let path = `/accounts/${encodeURIComponent(accountId)}`;
+
+        if (action === "balance") {
+          path += "/balance";
+        } else if (action === "statement") {
+          path += "/statement";
+          const params = new URLSearchParams();
+          const limit = document.getElementById("statement-limit").value;
+          const cursor = document.getElementById("statement-cursor").value.trim();
+          const from = toIso(document.getElementById("statement-from").value);
+          const to = toIso(document.getElementById("statement-to").value);
+
+          if (limit) params.set("limit", limit);
+          if (cursor) params.set("cursor", cursor);
+          if (from) params.set("from", from);
+          if (to) params.set("to", to);
+
+          const query = params.toString();
+          if (query) {
+            path += `?${query}`;
+          }
+        }
+
+        await request("GET", path);
+        rememberItem(storageKeys.accountIds, accountId);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("post-transaction-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      button.disabled = true;
+
+      try {
+        const payload = {
+          reference: document.getElementById("tx-reference").value.trim(),
+          description: document.getElementById("tx-description").value.trim() || null,
+          entries: collectEntries()
+        };
+
+        const result = await request("POST", "/journal/transactions", payload);
+        rememberItem(storageKeys.references, payload.reference);
+        rememberItem(storageKeys.transactionIds, result.transaction.transaction_id);
+        payload.entries.forEach((entry) => rememberItem(storageKeys.accountIds, entry.account_id));
+        document.getElementById("lookup-tx-id").value = result.transaction.transaction_id;
+        document.getElementById("reverse-tx-id").value = result.transaction.transaction_id;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("lookup-transaction-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      button.disabled = true;
+
+      try {
+        const transactionId = document.getElementById("lookup-tx-id").value.trim();
+        const reference = document.getElementById("lookup-reference").value.trim();
+        const path = transactionId
+          ? `/journal/transactions/${encodeURIComponent(transactionId)}`
+          : `/journal/transactions/by-reference/${encodeURIComponent(reference)}`;
+
+        const result = await request("GET", path);
+        rememberItem(storageKeys.transactionIds, result.transaction_id);
+        rememberItem(storageKeys.references, result.reference);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("reverse-transaction-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      button.disabled = true;
+
+      try {
+        const transactionId = document.getElementById("reverse-tx-id").value.trim();
+        const payload = {
+          reference: document.getElementById("reverse-reference").value.trim(),
+          description: document.getElementById("reverse-description").value.trim() || null
+        };
+
+        const result = await request(
+          "POST",
+          `/journal/transactions/${encodeURIComponent(transactionId)}/reverse`,
+          payload
+        );
+
+        rememberItem(storageKeys.transactionIds, result.transaction.transaction_id);
+        rememberItem(storageKeys.references, payload.reference);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    entryList.appendChild(buildEntryRow("debit"));
+    entryList.appendChild(buildEntryRow("credit"));
+    renderRecents();
+    seedTransactionForm();
+  </script>
+</body>
+</html>
