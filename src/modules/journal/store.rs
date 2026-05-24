@@ -356,55 +356,66 @@ impl JournalRepository for PgJournalStore {
         .await
         .map_err(db_error("select statement rows"))?;
 
-        let opening_boundary = query
-            .cursor
-            .as_ref()
-            .map(|cursor| {
-                (
-                    Some(cursor.created_at),
-                    Some(cursor.transaction_id.value()),
-                    Some(cursor.entry_id.value()),
-                )
-            })
-            .unwrap_or((query.from, None, None));
+        let (mut running_debits, mut running_credits) = if let Some(cursor) = query.cursor.as_ref()
+        {
+            let opening = sqlx::query(
+                r#"
+                select
+                    coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0)::bigint as debit_total,
+                    coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0)::bigint as credit_total
+                from journal_entries
+                where account_id = $1
+                  and (created_at, transaction_id, id) <= ($2, $3, $4)
+                "#,
+            )
+            .bind(account_id.value())
+            .bind(cursor.created_at)
+            .bind(cursor.transaction_id.value())
+            .bind(cursor.entry_id.value())
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db_error("select opening balance from cursor"))?;
 
-        let opening = sqlx::query(
-            r#"
-            select
-                coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0)::bigint as debit_total,
-                coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0)::bigint as credit_total
-            from journal_entries
-            where account_id = $1
-              and (
-                $2::timestamptz is null
-                or (created_at, transaction_id, id) < ($2, coalesce($3, transaction_id), coalesce($4, id))
-              )
-            "#,
-        )
-        .bind(account_id.value())
-        .bind(opening_boundary.0)
-        .bind(opening_boundary.1)
-        .bind(opening_boundary.2)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(db_error("select opening balance"))?;
+            (
+                Money::from_minor_units(opening.get::<i64, _>("debit_total"))?,
+                Money::from_minor_units(opening.get::<i64, _>("credit_total"))?,
+            )
+        } else if let Some(from) = query.from {
+            let opening = sqlx::query(
+                r#"
+                select
+                    coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0)::bigint as debit_total,
+                    coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0)::bigint as credit_total
+                from journal_entries
+                where account_id = $1
+                  and created_at < $2
+                "#,
+            )
+            .bind(account_id.value())
+            .bind(from)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db_error("select opening balance from from-date"))?;
 
-        let mut running_debits = Money::from_minor_units(opening.get::<i64, _>("debit_total"))?;
-        let mut running_credits = Money::from_minor_units(opening.get::<i64, _>("credit_total"))?;
+            (
+                Money::from_minor_units(opening.get::<i64, _>("debit_total"))?,
+                Money::from_minor_units(opening.get::<i64, _>("credit_total"))?,
+            )
+        } else {
+            (Money::zero(), Money::zero())
+        };
 
+        let has_more = rows.len() > query.limit;
         let mut entries = Vec::new();
         let mut next_cursor = None;
+        let mut last_returned_cursor = None;
 
-        for (index, row) in rows.into_iter().enumerate() {
-            if index == query.limit {
-                let cursor = StatementCursor {
-                    created_at: row.get("created_at"),
-                    transaction_id: TransactionId::new(row.get("transaction_id")),
-                    entry_id: EntryId::new(row.get("entry_id")),
-                };
-                next_cursor = Some(encode_statement_cursor(&cursor)?);
-                break;
-            }
+        for row in rows.into_iter().take(query.limit) {
+            let cursor = StatementCursor {
+                created_at: row.get("created_at"),
+                transaction_id: TransactionId::new(row.get("transaction_id")),
+                entry_id: EntryId::new(row.get("entry_id")),
+            };
 
             let direction = EntryDirection::from_db_value(&row.get::<String, _>("direction"))?;
             let amount = Money::from_minor_units(row.get("amount_in_cents"))?;
@@ -412,10 +423,11 @@ impl JournalRepository for PgJournalStore {
                 EntryDirection::Debit => running_debits += amount,
                 EntryDirection::Credit => running_credits += amount,
             }
+            last_returned_cursor = Some(cursor.clone());
 
             entries.push(StatementEntry {
-                entry_id: EntryId::new(row.get("entry_id")),
-                transaction_id: TransactionId::new(row.get("transaction_id")),
+                entry_id: cursor.entry_id,
+                transaction_id: cursor.transaction_id,
                 reference: row.get("reference"),
                 description: row.get("description"),
                 direction,
@@ -427,6 +439,13 @@ impl JournalRepository for PgJournalStore {
                 ),
                 created_at: row.get("created_at"),
             });
+        }
+
+        if has_more {
+            next_cursor = last_returned_cursor
+                .as_ref()
+                .map(encode_statement_cursor)
+                .transpose()?;
         }
 
         Ok(Some(StatementPage {
