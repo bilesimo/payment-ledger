@@ -123,11 +123,24 @@ async fn reverse_transaction_creates_inverse_entries() {
         .expect("post should succeed");
 
     let reversal = journal_service
-        .reverse_transaction(posted.transaction.id, "payment-id-2-reversal".to_owned(), None)
+        .reverse_transaction(
+            posted.transaction.id,
+            "payment-id-2-reversal".to_owned(),
+            None,
+        )
         .await
         .expect("reversal should succeed");
 
-    assert_eq!(reversal.transaction.reversal_of_transaction_id, Some(posted.transaction.id));
-    assert_eq!(reversal.transaction.entries[0].direction, EntryDirection::Credit);
-    assert_eq!(reversal.transaction.entries[1].direction, EntryDirection::Debit);
+    assert_eq!(
+        reversal.transaction.reversal_of_transaction_id,
+        Some(posted.transaction.id)
+    );
+    assert_eq!(
+        reversal.transaction.entries[0].direction,
+        EntryDirection::Credit
+    );
+    assert_eq!(
+        reversal.transaction.entries[1].direction,
+        EntryDirection::Debit
+    );
 }

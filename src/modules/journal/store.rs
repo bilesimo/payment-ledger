@@ -265,8 +265,8 @@ impl JournalRepository for PgJournalStore {
         let aggregates = sqlx::query(
             r#"
             select
-                coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0) as debit_total,
-                coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0) as credit_total
+                coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0)::bigint as debit_total,
+                coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0)::bigint as credit_total
             from journal_entries
             where account_id = $1
             "#,
@@ -371,8 +371,8 @@ impl JournalRepository for PgJournalStore {
         let opening = sqlx::query(
             r#"
             select
-                coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0) as debit_total,
-                coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0) as credit_total
+                coalesce(sum(case when direction = 'debit' then amount_in_cents else 0 end), 0)::bigint as debit_total,
+                coalesce(sum(case when direction = 'credit' then amount_in_cents else 0 end), 0)::bigint as credit_total
             from journal_entries
             where account_id = $1
               and (

@@ -128,7 +128,10 @@ async fn posts_transaction_idempotently() {
 
     assert_eq!(first_status, StatusCode::CREATED);
     assert_eq!(second_status, StatusCode::OK);
-    assert_eq!(first.transaction.transaction_id, second.transaction.transaction_id);
+    assert_eq!(
+        first.transaction.transaction_id,
+        second.transaction.transaction_id
+    );
 }
 
 #[tokio::test]
@@ -190,7 +193,10 @@ async fn gets_transaction_by_id() {
     let response = send_request(
         &app,
         Method::GET,
-        &format!("/journal/transactions/{}", posted.transaction.transaction_id),
+        &format!(
+            "/journal/transactions/{}",
+            posted.transaction.transaction_id
+        ),
         None,
     )
     .await;
@@ -198,7 +204,10 @@ async fn gets_transaction_by_id() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let transaction: JournalTransactionResponse = read_json(response).await;
-    assert_eq!(transaction.transaction_id, posted.transaction.transaction_id);
+    assert_eq!(
+        transaction.transaction_id,
+        posted.transaction.transaction_id
+    );
     assert_eq!(transaction.reference, "payment-id-3");
     assert_eq!(transaction.description.as_deref(), Some("merchant payout"));
 }
@@ -241,9 +250,15 @@ async fn reverses_transaction() {
         reversal.transaction.reversal_of_transaction_id,
         Some(posted.transaction.transaction_id)
     );
-    assert_eq!(reversal.transaction.entries[0].account_id, asset.account_id.value());
+    assert_eq!(
+        reversal.transaction.entries[0].account_id,
+        asset.account_id.value()
+    );
     assert_eq!(reversal.transaction.entries[0].direction, "credit");
-    assert_eq!(reversal.transaction.entries[1].account_id, liability.account_id.value());
+    assert_eq!(
+        reversal.transaction.entries[1].account_id,
+        liability.account_id.value()
+    );
     assert_eq!(reversal.transaction.entries[1].direction, "debit");
     assert_eq!(reversal.transaction.entries[0].amount_in_cents, 500);
 }
@@ -277,7 +292,10 @@ async fn gets_transaction_by_reference() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let transaction: JournalTransactionResponse = read_json(response).await;
-    assert_eq!(transaction.transaction_id, posted.transaction.transaction_id);
+    assert_eq!(
+        transaction.transaction_id,
+        posted.transaction.transaction_id
+    );
     assert_eq!(transaction.reference, "payment-id-5");
 }
 
@@ -396,7 +414,10 @@ async fn rejects_invalid_statement_cursor() {
     let response = send_request(
         &app,
         Method::GET,
-        &format!("/accounts/{}/statement?cursor=not-base64", account.account_id.value()),
+        &format!(
+            "/accounts/{}/statement?cursor=not-base64",
+            account.account_id.value()
+        ),
         None,
     )
     .await;
